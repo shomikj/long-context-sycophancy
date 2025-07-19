@@ -43,7 +43,7 @@ class QueryClaude:
         }
         return query
 
-    def build_batch(self, jsonl_array):
+    def run_batch(self, jsonl_array):
         message_batch = self.client.beta.messages.batches.create(
             requests=jsonl_array
         )
@@ -62,6 +62,7 @@ class QueryClaude:
         df["prompt_id"] = df['id'].apply(lambda x: str(x).split('_')[0])
         df["iteration"] = df['id'].apply(lambda x: str(x).split('_')[1])
         df["context"] = df['id'].apply(lambda x: str(x).split('_')[2])
+        df["model"] = "claude-sonnet-4-20250514"
         df = df.drop(columns=["id"])
         return df
     
@@ -77,16 +78,25 @@ class QueryClaude:
         with open("claude_results.jsonl", 'w') as f:
             f.write(content)
 
-    def run_batch(self, df, context_id, context, num_iterations):
-        batch = []
-        for _,r in df.iterrows():
-            prompt_id = r["prompt_id"]
-            for i in range(num_iterations):
-                query_id = prompt_id + "_" + str(i) + "_" + context_id
-                query = self.build_batch_query(query_id, context, r["prompt"])
-                batch.append(query)
+    def get_batch_results(self, batch_id):
+        self.download_batch(batch_id)
+        return self.process_batch_results()
 
-        batch = self.build_batch(batch)
+    def build_and_run_batch(self, prompts, context_ids, contexts, num_iterations):
+        batch = []
+        for _,r in prompts.iterrows():
+            prompt_id = r["prompt_id"]
+            prompt = r["prompt"]
+
+            for context_id, context in zip(context_ids, contexts):
+                for iteration in range(num_iterations):
+                    query_id = prompt_id + "_" + str(iteration) + "_" + context_id
+                    query = self.build_batch_query(query_id, context, prompt)
+                    batch.append(query)
+
+        batch = self.run_batch(batch)
+        return batch.id
+        '''
         batch_id = batch.id
         iterations = 0
         while batch.processing_status != "ended":
@@ -99,6 +109,7 @@ class QueryClaude:
         
         self.download_batch(batch_id)
         return self.process_batch_results()
+        '''
 
 class QueryGPT:
     def __init__(self):
@@ -125,7 +136,7 @@ class QueryGPT:
 
         return json.dumps(query)
 
-    def build_batch(self, jsonl_file):
+    def run_batch(self, jsonl_file):
         batch_input_file = self.client.files.create(
             file=open(jsonl_file, "rb"),
             purpose="batch"
@@ -146,8 +157,8 @@ class QueryGPT:
         output_file_id = batch.output_file_id
         response = self.client.files.with_raw_response.retrieve_content(output_file_id)
 
-        with open("gpt_results.jsonl", "w") as f:
-            f.write(response.content)
+        with open("gpt_results.jsonl", "w", encoding="utf-8") as f:
+            f.write(response.content.decode("utf-8"))
 
     def process_batch_results(self, jsonl_file="gpt_results.jsonl"):
         df = []
@@ -162,20 +173,28 @@ class QueryGPT:
         df["prompt_id"] = df['id'].apply(lambda x: str(x).split('_')[0])
         df["iteration"] = df['id'].apply(lambda x: str(x).split('_')[1])
         df["context"] = df['id'].apply(lambda x: str(x).split('_')[2])
+        df["model"] = "gpt-4.1-mini-2025-04-14"
         df = df.drop(columns=["id"])
         return df
 
-    def run_batch(self, df, context_id, context, num_iterations):
+    def get_batch_results(self, batch_id):
+        self.download_batch(batch_id)
+        return self.process_batch_results()
+
+    def build_and_run_batch(self, prompts, context_ids, contexts, num_iterations):
         batch_file = "batch.jsonl"
         with open(batch_file, 'w') as file:
-            for _,r in df.iterrows():
+            for _,r in prompts.iterrows():
                 prompt_id = r["prompt_id"]
-                for i in range(num_iterations):
-                    query_id = prompt_id + "_" + str(i) + "_" + context_id
-                    query = self.build_batch_query(query_id, context, r["prompt"])
-                    file.write(query + "\n")
-        
-        batch_id = self.build_batch(batch_file)
+                prompt = r["prompt"]
+                for context_id, context in zip(context_ids, contexts):
+                    for iteration in range(num_iterations):
+                        query_id = prompt_id + "_" + str(iteration) + "_" + context_id
+                        query = self.build_batch_query(query_id, context, prompt)
+                        file.write(query + "\n")
+        batch_id = self.run_batch(batch_file)
+        return batch_id
+        '''
         batch = self.client.batches.retrieve(batch_id)
         iterations = 0
         while batch.status != "completed":
@@ -188,3 +207,4 @@ class QueryGPT:
         
         self.download_batch(batch_id)
         return self.process_batch_results()
+        '''
