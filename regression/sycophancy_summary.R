@@ -140,8 +140,8 @@ build_column <- function(dat, y_var, x_var, digits = 3) {
   entries
 }
 
-# --- Main: Build the single 4-column table -----------------------------------
-build_combined_table <- function(cfg, digits = 3) {
+# --- Main: Build the 2-column table (Claude x aita, GPT x aita) ---------------
+build_aita_table <- function(cfg, digits = 3) {
   # Defaults & required
   stopifnot(is.list(cfg))
   cfg$data_dir <- cfg$data_dir %||% "."
@@ -154,13 +154,13 @@ build_combined_table <- function(cfg, digits = 3) {
   csv_path <- file.path(cfg$data_dir, cfg$file_name)
   out_file <- cfg$out_file %||% file.path(
     cfg$out_dir,
-    paste0(cfg$y_var, "_", cfg$x_var, ".tex")
+    paste0(cfg$y_var, "_", cfg$x_var, "_aita_only.tex")
   )
   
   # Load once
   dat <- read.csv(csv_path, stringsAsFactors = FALSE, header = TRUE)
   
-  # ---------- Pretty labels (your reference, with underscore escaping) ----------
+  # ---------- Pretty labels (with underscore escaping) ----------
   pretty_label <- function(name) {
     if (grepl("^factor\\(prompt_id\\)", name)) {
       nm <- sub("^factor\\(prompt_id\\)", "", name) # raw FE label only
@@ -179,12 +179,10 @@ build_combined_table <- function(cfg, digits = 3) {
     gsub("_", "\\\\_", nm)
   }
   
-  # Define the four columns in the requested order
+  # Define the TWO columns in the requested order
   COLS <- list(
-    "Claude x politics" = list(model_name = "claude-sonnet-4-20250514", task_name = "politics"),
-    "GPT x politics"    = list(model_name = "gpt-4.1-mini-2025-04-14", task_name = "politics"),
-    "Claude x aita"     = list(model_name = "claude-sonnet-4-20250514", task_name = "aita"),
-    "GPT x aita"        = list(model_name = "gpt-4.1-mini-2025-04-14", task_name = "aita")
+    "Claude x aita" = list(model_name = "claude-sonnet-4-20250514", task_name = "aita"),
+    "GPT x aita"    = list(model_name = "gpt-4.1-mini-2025-04-14",  task_name = "aita")
   )
   
   # Build each column by subsetting data, fitting specs, and extracting values
@@ -230,7 +228,7 @@ build_combined_table <- function(cfg, digits = 3) {
     latex_escape_underscores(cfg$y_var),
     " ~ ",
     latex_escape_underscores(cfg$x_var),
-    " \\textbar{} combined specs \\& configurations"
+    " \\textbar{} aita task only"
   )
   
   # Output LaTeX
@@ -252,12 +250,11 @@ build_combined_table <- function(cfg, digits = 3) {
 # ---------------- Run it ------------------------------------------------------
 base_cfg <- list(
   data_dir   = "/Users/shomik/Documents/MIT/Projects/Alignment_Drift/data/regression",
-  file_name  = "mimesis.csv",
-  y_var      = "mimesis",
+  file_name  = "sycophancy.csv",
+  y_var      = "sycophancy",
   x_var      = "with_context",
   out_dir    = "/Users/shomik/Documents/MIT/Projects/Alignment_Drift/long-context-eval/tables"
 )
 
-# Build the single 4-column table
-res_combined <- build_combined_table(base_cfg, digits = 3)
-
+# Build the 2-column AITA-only table
+res_aita <- build_aita_table(base_cfg, digits = 3)
